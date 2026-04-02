@@ -25,6 +25,12 @@ class WebRTCHandler(
 
     private fun initWebRTC() {
         Log.i(TAG, "Initializing WebRTC Component...")
+        
+        // Force Audio Routing to Main Speakerphone
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+        audioManager.isSpeakerphoneOn = true
+
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(context)
                 .setEnableInternalTracer(true)

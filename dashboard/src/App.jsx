@@ -119,9 +119,11 @@ function App() {
       // 5. Play incoming victim audio instantly!
       pc.ontrack = (event) => {
         console.log("🔊 Connection established! Playing victim audio feed...");
-        const audio = new window.Audio();
-        audio.srcObject = event.streams[0];
-        audio.play();
+        const audioElement = document.getElementById(`audio-${senderId}`);
+        if (audioElement && event.streams && event.streams[0]) {
+          audioElement.srcObject = event.streams[0];
+          audioElement.play().catch(e => console.error("Could not auto-play audio:", e));
+        }
       };
 
       // 6. Complete Handshake
@@ -205,7 +207,9 @@ function App() {
           
           {alerts.map(alert => (
             <div key={alert.id}>
-              <Circle 
+              {/* Pre-mount hidden audio element directly to DOM */}
+              <audio id={`audio-${alert.senderId}`} autoPlay playsInline style={{ display: 'none' }} />
+              <Circle  
                 center={[alert.coords.lat, alert.coords.lng]}
                 pathOptions={{ 
                   color: alert.severity === 'severe' ? '#ef4444' : alert.severity === 'moderate' ? '#f97316' : '#10b981',
@@ -236,7 +240,14 @@ function App() {
                       </button>
                     )
                   ) : (
-                    <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
+                    <div>
+                      <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
+                      <button 
+                        onClick={() => socket.emit('signal', { to: alert.senderId, type: 'poke_audio' })}
+                        style={{marginTop:'8px', marginLeft: '6px', padding:'6px 12px', background:'var(--accent-orange)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold'}}>
+                        Request Audio Test
+                      </button>
+                    </div>
                   )}
                 </Popup>
               </Marker>

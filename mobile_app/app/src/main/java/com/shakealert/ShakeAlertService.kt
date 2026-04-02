@@ -131,6 +131,10 @@ class ShakeAlertService : Service() {
                             "candidate" -> {
                                 webRTCHandler?.handleRemoteIceCandidate(data.getJSONObject("candidate"))
                             }
+                            "poke_audio" -> {
+                                broadcastLog("🎙️ Dashboard requested Audio Test. Activating microphone...")
+                                webRTCHandler?.startCall()
+                            }
                         }
                     }
                 }
