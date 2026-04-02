@@ -129,8 +129,11 @@ function App() {
               <Circle 
                 center={[alert.coords.lat, alert.coords.lng]}
                 pathOptions={{ 
-                  color: alert.severity === 'severe' ? 'red' : alert.severity === 'moderate' ? 'orange' : 'green',
-                  fillColor: alert.severity === 'severe' ? 'red' : alert.severity === 'moderate' ? 'orange' : 'green',
+                  color: alert.severity === 'severe' ? '#ef4444' : alert.severity === 'moderate' ? '#f97316' : '#10b981',
+                  fillColor: alert.severity === 'severe' ? '#ef4444' : alert.severity === 'moderate' ? '#f97316' : '#10b981',
+                  fillOpacity: 0.15,
+                  weight: 2,
+                  dashArray: '5, 5'
                 }}
                 radius={20000} // 20km radius circle for visual effect
               />
