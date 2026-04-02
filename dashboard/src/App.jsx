@@ -221,6 +221,8 @@ function App() {
                     </div>
                   )}
                 </div>
+                {/* Safe DOM insertion for WebRTC audio elements */}
+                <audio id={`audio-${alert.senderId}`} autoPlay playsInline style={{ display: 'none' }} />
               </div>
             ))
           )}
@@ -236,10 +238,8 @@ function App() {
           />
           
           {alerts.map(alert => (
-            <div key={alert.id}>
-              {/* Pre-mount hidden audio element directly to DOM */}
-              <audio id={`audio-${alert.senderId}`} autoPlay playsInline style={{ display: 'none' }} />
-              <Circle  
+            <React.Fragment key={alert.id}>
+              <Circle 
                 center={[alert.coords.lat, alert.coords.lng]}
                 pathOptions={{ 
                   color: alert.severity === 'severe' ? '#ef4444' : alert.severity === 'moderate' ? '#f97316' : '#10b981',
@@ -281,7 +281,7 @@ function App() {
                   )}
                 </Popup>
               </Marker>
-            </div>
+            </React.Fragment>
           ))}
         </MapContainer>
       </main>
