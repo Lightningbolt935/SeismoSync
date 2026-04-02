@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { io } from 'socket.io-client';
 import 'leaflet/dist/leaflet.css';
@@ -37,6 +37,11 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [alerts, setAlerts] = useState([]);
+  
+  // WebRTC States
+  const [incomingOffers, setIncomingOffers] = useState({});
+  const [activeCalls, setActiveCalls] = useState({});
+  const peersRef = useRef({});
 
   useEffect(() => {
     // Initialize Socket Connection
@@ -54,7 +59,7 @@ function App() {
       setConnected(false);
     });
 
-    // Listen for shake alerts (explicit events or WebRTC data fallback)
+    // Listen for shake alerts
     newSocket.on('shake_alert', (data) => {
       console.log('Received shake alert', data);
       
@@ -70,10 +75,73 @@ function App() {
       setAlerts(prev => [newAlert, ...prev]);
     });
 
+    // Listen for WebRTC signals (Offers, answers, ICE candidates)
+    newSocket.on('signal', async (data) => {
+      const senderId = data.senderId;
+      if (data.type === 'offer') {
+        console.log(`🎙️ Incoming Audio Offer from Victim: ${senderId}`);
+        setIncomingOffers(prev => ({ ...prev, [senderId]: data.sdp }));
+      } else if (data.type === 'candidate' && peersRef.current[senderId]) {
+        try {
+           await peersRef.current[senderId].addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch(e) {
+           console.error('Error adding ICE candidate', e);
+        }
+      }
+    });
+
     return () => newSocket.close();
   }, []);
 
-  // Center of US / World starting point
+  const acceptAudio = async (senderId) => {
+    const offerSdp = incomingOffers[senderId];
+    if (!offerSdp || !socket) return;
+
+    try {
+      // 1. Get Rescuer Microphone
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // 2. Init WebRTC Peer Connection
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      // 3. Add local tracks
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      // 4. Send ICE candidates back to victim
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          socket.emit('signal', { to: senderId, type: 'candidate', candidate: e.candidate });
+        }
+      };
+
+      // 5. Play incoming victim audio instantly!
+      pc.ontrack = (event) => {
+        console.log("🔊 Connection established! Playing victim audio feed...");
+        const audio = new window.Audio();
+        audio.srcObject = event.streams[0];
+        audio.play();
+      };
+
+      // 6. Complete Handshake
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSdp }));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      // 7. Send Answer
+      socket.emit('signal', { to: senderId, type: 'answer', sdp: answer.sdp });
+      
+      // Store in memory
+      peersRef.current[senderId] = pc;
+      setActiveCalls(prev => ({...prev, [senderId]: true}));
+
+    } catch (err) {
+      console.error("Audio connection failed", err);
+      alert("Microphone connection failed. Please check browser permissions.");
+    }
+  };
+
   const mapCenter = [39.8283, -98.5795];
 
   return (
@@ -89,7 +157,7 @@ function App() {
           </h1>
           <div className="connection-status">
             <span className={`status-dot ${connected ? 'connected' : ''}`}></span>
-            {connected ? 'Real-time System Active' : 'Connecting to Server...'}
+            {connected ? 'Global System Active' : 'Connecting to Node...'}
           </div>
         </div>
 
@@ -108,6 +176,18 @@ function App() {
                 <div className="alert-details">
                   <p><strong>Victim ID:</strong> {alert.senderId.slice(0,6)}...</p>
                   <p><strong>Location:</strong> {alert.coords.lat.toFixed(4)}, {alert.coords.lng.toFixed(4)}</p>
+                  
+                  {/* Real-time WebRTC Audio Context */}
+                  {incomingOffers[alert.senderId] && !activeCalls[alert.senderId] && (
+                    <div style={{ marginTop: '8px', color: '#10b981', fontWeight: '600', animation: 'pulse 2s infinite' }}>
+                      🎙️ Victim sending audio feed!
+                    </div>
+                  )}
+                  {activeCalls[alert.senderId] && (
+                    <div style={{ marginTop: '8px', color: '#3b82f6', fontWeight: '600' }}>
+                      🔊 Audio Bridge Active
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -118,7 +198,6 @@ function App() {
       {/* Map View */}
       <main className="map-container">
         <MapContainer center={mapCenter} zoom={4} style={{ height: '100%', width: '100%' }}>
-          {/* Dark themed map tiles (CartoDB Dark Matter) */}
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -135,17 +214,30 @@ function App() {
                   weight: 2,
                   dashArray: '5, 5'
                 }}
-                radius={20000} // 20km radius circle for visual effect
+                radius={20000}
               />
               <Marker 
                 position={[alert.coords.lat, alert.coords.lng]}
                 icon={icons[alert.severity] || icons.severe}
               >
                 <Popup>
-                  <strong>Shake Alert Detected</strong><br/>
-                  Severity: {alert.severity}<br/>
+                  <strong>Entity: {alert.senderId.slice(0,6)}</strong><br/>
+                  Severity: <span style={{color: 'var(--accent-red)'}}>{alert.severity.toUpperCase()}</span><br/>
                   Time: {alert.timestamp}<br/>
-                  <button style={{marginTop:'8px', padding:'4px 8px', background:'var(--accent-blue)', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}}>Connect Audio</button>
+                  
+                  {incomingOffers[alert.senderId] ? (
+                    activeCalls[alert.senderId] ? (
+                      <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#475569', color:'white', border:'none', borderRadius:'6px'}}>🔊 Connection Live</button>
+                    ) : (
+                      <button 
+                        onClick={() => acceptAudio(alert.senderId)}
+                        style={{marginTop:'8px', padding:'6px 12px', background:'#3b82f6', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'}}>
+                        📞 INCOMING FEED... ACCEPT
+                      </button>
+                    )
+                  ) : (
+                    <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
+                  )}
                 </Popup>
               </Marker>
             </div>

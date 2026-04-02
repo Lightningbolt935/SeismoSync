@@ -30,6 +30,7 @@ class ShakeAlertService : Service() {
     private lateinit var shakeDetector: ShakeDetector
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var mSocket: Socket? = null
+    private var webRTCHandler: WebRTCHandler? = null
 
     companion object {
         private const val TAG = "ShakeAlertService"
@@ -52,8 +53,29 @@ class ShakeAlertService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
         broadcastLog("> ShakeAlert Service Created in Background")
+        initWebRTC()
         initSocket()
         initSensors()
+    }
+
+    private fun initWebRTC() {
+        webRTCHandler = WebRTCHandler(this,
+            onOfferReady = { sdp ->
+                broadcastLog("📤 Transmitting Live Audio Offer to Rescuers...")
+                val payload = JSONObject().apply {
+                    put("type", "offer")
+                    put("sdp", sdp)
+                }
+                mSocket?.emit("signal", payload)
+            },
+            onIceCandidateReady = { candidateJson ->
+                val payload = JSONObject().apply {
+                    put("type", "candidate")
+                    put("candidate", candidateJson)
+                }
+                mSocket?.emit("signal", payload)
+            }
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -97,6 +119,23 @@ class ShakeAlertService : Service() {
                 broadcastLog("❌ Connection Error: $err")
             }
 
+            mSocket?.on("signal") { args ->
+                if (args.isNotEmpty()) {
+                    val data = args[0] as JSONObject
+                    if (data.has("type")) {
+                        when (data.getString("type")) {
+                            "answer" -> {
+                                broadcastLog("📞 Rescuer accepted audio! Establishing bridge...")
+                                webRTCHandler?.handleRemoteAnswer(data.getString("sdp"))
+                            }
+                            "candidate" -> {
+                                webRTCHandler?.handleRemoteIceCandidate(data.getJSONObject("candidate"))
+                            }
+                        }
+                    }
+                }
+            }
+
             mSocket?.on(Socket.EVENT_DISCONNECT) {
                 broadcastLog("⚠️ Disconnected from server.")
             }
@@ -119,6 +158,10 @@ class ShakeAlertService : Service() {
             override fun onShake(severity: String, force: Float) {
                 broadcastLog("🚨 SHAKE DETECTED! ($severity)")
                 sendAlertToServer(severity, force)
+                if (severity == "severe" || severity == "manual-test") {
+                    broadcastLog("🎙️ Activating emergency microphone...")
+                    webRTCHandler?.startCall()
+                }
             }
         })
         
