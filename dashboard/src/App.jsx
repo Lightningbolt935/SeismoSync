@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { io } from 'socket.io-client';
 import 'leaflet/dist/leaflet.css';
@@ -238,7 +238,7 @@ function App() {
           />
           
           {alerts.map(alert => (
-            <React.Fragment key={alert.id}>
+            <Fragment key={alert.id}>
               <Circle 
                 center={[alert.coords.lat, alert.coords.lng]}
                 pathOptions={{ 
@@ -281,7 +281,7 @@ function App() {
                   )}
                 </Popup>
               </Marker>
-            </React.Fragment>
+            </Fragment>
           ))}
         </MapContainer>
       </main>
