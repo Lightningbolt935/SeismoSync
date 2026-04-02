@@ -19,6 +19,8 @@ import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import io.socket.client.IO
 import io.socket.client.Socket
 import org.json.JSONObject
@@ -176,21 +178,22 @@ class ShakeAlertService : Service() {
     @SuppressLint("MissingPermission")
     private fun sendAlertToServer(severity: String, force: Float) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                val lat = location?.latitude ?: 0.0
-                val lng = location?.longitude ?: 0.0
-                
-                broadcastLog("📤 Sending Alert: $severity at [$lat, $lng]")
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
+                .addOnSuccessListener { location ->
+                    val lat = location?.latitude ?: 0.0
+                    val lng = location?.longitude ?: 0.0
+                    
+                    broadcastLog("📤 Sending Alert: $severity at [$lat, $lng]")
 
-                val payload = JSONObject().apply {
-                    put("lat", lat)
-                    put("lng", lng)
-                    put("severity", severity)
-                    put("rawSensor", force.toDouble())
+                    val payload = JSONObject().apply {
+                        put("lat", lat)
+                        put("lng", lng)
+                        put("severity", severity)
+                        put("rawSensor", force.toDouble())
+                    }
+
+                    mSocket?.emit("shake_alert", payload)
                 }
-
-                mSocket?.emit("shake_alert", payload)
-            }
         } else {
             broadcastLog("❌ Location permission missing. Could not acquire GPS.")
         }

