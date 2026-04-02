@@ -1,14 +1,27 @@
 R_DEF: Internal format may change without notice
 local
-color black
-color purple_200
-color purple_500
-color purple_700
-color teal_200
-color teal_700
-color white
+color accent_danger
+color accent_danger_pressed
+color accent_success
+color accent_warning
+color bg_card
+color bg_dark
+color terminal_bg
+color terminal_text
+color text_primary
+color text_secondary
+drawable bg_button_danger
+drawable bg_card
+drawable bg_terminal
 drawable ic_launcher_background
 drawable ic_launcher_foreground
+id btnManualTrigger
+id scrollViewTerminal
+id switchBackground
+id tvMainStatus
+id tvSubStatus
+id tvTerminal
+layout activity_main
 mipmap ic_launcher
 mipmap ic_launcher_round
 style Theme.ShakeAlert

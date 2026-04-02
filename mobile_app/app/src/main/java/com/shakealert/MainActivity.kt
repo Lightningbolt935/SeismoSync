@@ -110,9 +110,11 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), PERMISSION_REQUEST_CODE)
             appendLog("> Requesting required permissions...")
         } else {
-            // Auto start if granted
-            if (!ShakeAlertService.isServiceRunning) {
-                switchBackground.isChecked = true // Triggers the listener to start it
+            // Auto start base service (Connects to Server)
+            startService(Intent(this, ShakeAlertService::class.java))
+            // Enable foreground persistence if requested
+            if (switchBackground.isChecked) {
+                startShakeAppService()
             }
         }
     }
@@ -121,8 +123,9 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                if (!ShakeAlertService.isServiceRunning) {
-                    switchBackground.isChecked = true
+                startService(Intent(this, ShakeAlertService::class.java))
+                if (switchBackground.isChecked) {
+                    startShakeAppService()
                 }
             } else {
                 appendLog("❌ Permissions denied. Cannot start background service.")
@@ -132,8 +135,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startShakeAppService() {
-        appendLog("> Booting Background Process...")
-        val serviceIntent = Intent(this, ShakeAlertService::class.java)
+        appendLog("> Enabling Background Persistence...")
+        val serviceIntent = Intent(this, ShakeAlertService::class.java).apply {
+            action = "ENABLE_FOREGROUND"
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
         } else {
@@ -142,13 +147,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopShakeAppService() {
-        appendLog("> Shutting down Background Process...")
-        tvMainStatus.text = "System Offline"
-        tvMainStatus.setTextColor(Color.WHITE)
-        tvSubStatus.text = "Monitoring Disabled"
-        
+        appendLog("> Disabling Background Persistence...")
         val serviceIntent = Intent(this, ShakeAlertService::class.java).apply {
-            action = "STOP_SERVICE"
+            action = "DISABLE_FOREGROUND"
         }
         startService(serviceIntent)
     }

@@ -58,13 +58,13 @@ class ShakeAlertService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
-        if (action == "STOP_SERVICE") {
+        if (action == "DISABLE_FOREGROUND") {
             stopForeground(true)
-            stopSelf()
-            return START_NOT_STICKY
+            broadcastStatus("🟢 System Active", "Monitoring (App Open Only)")
+            // Removing stopSelf() so the socket and sensors stay alive while app is visible
         } else if (action == "MANUAL_TRIGGER") {
             sendAlertToServer("manual-test", 0.0f)
-        } else {
+        } else if (action == "ENABLE_FOREGROUND") {
             createNotificationChannel()
             val notification = NotificationCompat.Builder(this, "shake_alert_channel")
                 .setContentTitle("Shake Alert Monitoring")
