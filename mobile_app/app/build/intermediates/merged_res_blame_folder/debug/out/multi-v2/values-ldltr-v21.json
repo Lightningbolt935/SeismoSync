@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.shakealert.app-mergeDebugResources-31:/values-ldltr-v21/values-ldltr-v21.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Snehil Sahay\\.gradle\\caches\\transforms-3\\cd14fbe87e8d9cf26b1698361411f71d\\transformed\\appcompat-1.6.1\\res\\values-ldltr-v21\\values-ldltr-v21.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "112",
+                        "endOffsets": "163"
+                    }
+                }
+            ]
+        }
+    ]
+}
