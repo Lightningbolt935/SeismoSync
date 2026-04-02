@@ -124,12 +124,18 @@ class WebRTCHandler(
         })
     }
 
+    private val queuedRemoteCandidates = mutableListOf<IceCandidate>()
+    private var isRemoteDescriptionSet = false
+
     fun handleRemoteAnswer(sdpDescription: String) {
         val sdp = SessionDescription(SessionDescription.Type.ANSWER, sdpDescription)
         peerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onSetSuccess() {
                 Log.i(TAG, "Remote Rescuer Answer received! Audio Bridged Successfully.")
+                isRemoteDescriptionSet = true
+                queuedRemoteCandidates.forEach { peerConnection?.addIceCandidate(it) }
+                queuedRemoteCandidates.clear()
             }
             override fun onCreateFailure(p0: String?) {}
             override fun onSetFailure(p0: String?) {}
@@ -142,7 +148,11 @@ class WebRTCHandler(
             json.getInt("sdpMLineIndex"),
             json.getString("candidate")
         )
-        peerConnection?.addIceCandidate(candidate)
+        if (isRemoteDescriptionSet) {
+            peerConnection?.addIceCandidate(candidate)
+        } else {
+            queuedRemoteCandidates.add(candidate)
+        }
     }
 
     fun destroy() {

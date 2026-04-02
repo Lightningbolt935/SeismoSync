@@ -81,11 +81,18 @@ function App() {
       if (data.type === 'offer') {
         console.log(`🎙️ Incoming Audio Offer from Victim: ${senderId}`);
         setIncomingOffers(prev => ({ ...prev, [senderId]: data.sdp }));
-      } else if (data.type === 'candidate' && peersRef.current[senderId]) {
-        try {
-           await peersRef.current[senderId].addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch(e) {
-           console.error('Error adding ICE candidate', e);
+      } else if (data.type === 'candidate') {
+        if (peersRef.current[senderId]) {
+          try {
+             await peersRef.current[senderId].addIceCandidate(new RTCIceCandidate(data.candidate));
+          } catch(e) {
+             console.error('Error adding ICE candidate', e);
+          }
+        } else {
+          // The victim sends ICE candidates immediately after the offer. If we haven't clicked ACCEPT yet, queue them.
+          if (!window.candidateQueue) window.candidateQueue = {};
+          if (!window.candidateQueue[senderId]) window.candidateQueue[senderId] = [];
+          window.candidateQueue[senderId].push(data.candidate);
         }
       }
     });
@@ -101,10 +108,11 @@ function App() {
       // 1. Get Rescuer Microphone
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // 2. Init WebRTC Peer Connection
+      // 2. Init WebRTC Peer Connection & Store immediately
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
+      peersRef.current[senderId] = pc;
 
       // 3. Add local tracks
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -128,14 +136,21 @@ function App() {
 
       // 6. Complete Handshake
       await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSdp }));
+      
+      // Inject all queued ICE candidates from the victim that arrived while we were waiting to click ACCEPT
+      if (window.candidateQueue && window.candidateQueue[senderId]) {
+        for (const candidate of window.candidateQueue[senderId]) {
+           await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+        window.candidateQueue[senderId] = [];
+      }
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       // 7. Send Answer
       socket.emit('signal', { to: senderId, type: 'answer', sdp: answer.sdp });
       
-      // Store in memory
-      peersRef.current[senderId] = pc;
       setActiveCalls(prev => ({...prev, [senderId]: true}));
 
     } catch (err) {
