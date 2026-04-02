@@ -137,6 +137,10 @@ class ShakeAlertService : Service() {
                                 broadcastLog("🎙️ Dashboard requested Audio Test. Activating microphone...")
                                 webRTCHandler?.startCall()
                             }
+                            "disconnect_audio" -> {
+                                broadcastLog("🛑 Dashboard disconnected call. Releasing microphone.")
+                                webRTCHandler?.stopCall()
+                            }
                         }
                     }
                 }

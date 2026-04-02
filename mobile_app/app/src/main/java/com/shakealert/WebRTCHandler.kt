@@ -54,6 +54,7 @@ class WebRTCHandler(
     }
 
     private fun createLocalAudioTrack() {
+        if (localAudioTrack != null) return
         val factory = peerConnectionFactory ?: return
         val audioSource = factory.createAudioSource(MediaConstraints())
         localAudioTrack = factory.createAudioTrack("ARDAMSa0", audioSource)
@@ -61,12 +62,24 @@ class WebRTCHandler(
         Log.i(TAG, "Local Audio Microphone Track Captured.")
     }
 
+    fun stopCall() {
+        Log.i(TAG, "WebRTC Terminating Command Received. Safely shutting down tunnel...")
+        peerConnection?.close()
+        peerConnection = null
+        localAudioTrack?.setEnabled(false)
+        localAudioTrack?.dispose()
+        localAudioTrack = null
+        isRemoteDescriptionSet = false
+        queuedRemoteCandidates.clear()
+    }
+
     fun startCall() {
         Log.i(TAG, "Initiating WebRTC Audio Pipeline (Creating Offer)...")
         if (peerConnection != null) {
-            peerConnection?.close()
-            peerConnection = null
+            stopCall()
         }
+
+        createLocalAudioTrack()
 
         val rtcConfig = PeerConnection.RTCConfiguration(
             listOf(

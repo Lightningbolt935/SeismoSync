@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import { io } from 'socket.io-client';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
@@ -32,6 +32,18 @@ const icons = {
 };
 
 const SOCKET_SERVER_URL = 'http://localhost:3000';
+
+// Map Auto-Panning logic
+function MapUpdater({ alerts }) {
+  const map = useMap();
+  useEffect(() => {
+    if (alerts.length > 0) {
+      const topAlert = alerts[0];
+      map.flyTo([topAlert.coords.lat, topAlert.coords.lng], 8, { animate: true, duration: 1.5 });
+    }
+  }, [alerts, map]);
+  return null;
+}
 
 function App() {
   const [socket, setSocket] = useState(null);
@@ -174,6 +186,59 @@ function App() {
     }
   };
 
+  const disconnectAudio = (senderId) => {
+     if (peersRef.current[senderId]) {
+         peersRef.current[senderId].close();
+         delete peersRef.current[senderId];
+     }
+     
+     if (socket) {
+         socket.emit('signal', { to: senderId, type: 'disconnect_audio' });
+     }
+
+     setActiveCalls(prev => {
+        const next = { ...prev };
+        delete next[senderId];
+        return next;
+     });
+
+     setIncomingOffers(prev => {
+        const next = { ...prev };
+        delete next[senderId];
+        return next;
+     });
+     
+     console.log(`🛑 Audio tunnel with victim ${senderId} forcefully closed.`);
+  };
+
+  // Reusable component block for Call Action Buttons so we can put them in BOTH the sidebar and map pin.
+  const renderCallControls = (alert) => {
+      if (incomingOffers[alert.senderId]) {
+         if (activeCalls[alert.senderId]) {
+            return (
+               <button onClick={() => disconnectAudio(alert.senderId)} style={{marginTop:'8px', padding:'6px 12px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)'}}>
+                 🛑 Disconnect Call
+               </button>
+            )
+         } else {
+            return (
+               <button onClick={() => acceptAudio(alert.senderId)} style={{marginTop:'8px', padding:'6px 12px', background:'#3b82f6', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'}}>
+                 📞 INCOMING FEED... ACCEPT
+               </button>
+            )
+         }
+      } else {
+         return (
+            <div>
+               <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
+               <button onClick={() => socket.emit('signal', { to: alert.senderId, type: 'poke_audio' })} style={{marginTop:'8px', marginLeft: '6px', padding:'6px 12px', background:'var(--accent-orange)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold'}}>
+                 Request Audio Test
+               </button>
+            </div>
+         )
+      }
+  };
+
   const mapCenter = [39.8283, -98.5795];
 
   return (
@@ -220,6 +285,11 @@ function App() {
                       🔊 Audio Bridge Active
                     </div>
                   )}
+                  
+                  {/* Sidebar Call Action Buttons */}
+                  <div style={{ marginTop: '8px' }}>
+                    {renderCallControls(alert)}
+                  </div>
                 </div>
                 {/* Safe DOM insertion for WebRTC audio elements */}
                 <audio id={`audio-${alert.senderId}`} autoPlay playsInline style={{ display: 'none' }} />
@@ -237,6 +307,9 @@ function App() {
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
           
+          {/* Automatically focuses map to the latest active alert */}
+          <MapUpdater alerts={alerts} />
+
           {alerts.map(alert => (
             <Fragment key={alert.id}>
               <Circle 
@@ -259,26 +332,8 @@ function App() {
                   Severity: <span style={{color: 'var(--accent-red)'}}>{alert.severity.toUpperCase()}</span><br/>
                   Time: {alert.timestamp}<br/>
                   
-                  {incomingOffers[alert.senderId] ? (
-                    activeCalls[alert.senderId] ? (
-                      <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#475569', color:'white', border:'none', borderRadius:'6px'}}>🔊 Connection Live</button>
-                    ) : (
-                      <button 
-                        onClick={() => acceptAudio(alert.senderId)}
-                        style={{marginTop:'8px', padding:'6px 12px', background:'#3b82f6', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'}}>
-                        📞 INCOMING FEED... ACCEPT
-                      </button>
-                    )
-                  ) : (
-                    <div>
-                      <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
-                      <button 
-                        onClick={() => socket.emit('signal', { to: alert.senderId, type: 'poke_audio' })}
-                        style={{marginTop:'8px', marginLeft: '6px', padding:'6px 12px', background:'var(--accent-orange)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold'}}>
-                        Request Audio Test
-                      </button>
-                    </div>
-                  )}
+                  {/* Reuse the exact same command buttons for the Map Popup */}
+                  {renderCallControls(alert)}
                 </Popup>
               </Marker>
             </Fragment>
