@@ -1,188 +1,176 @@
 package com.shakealert
 
 import android.Manifest
-import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorManager
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
-import android.view.Gravity
 import android.widget.Button
-import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
-import io.socket.client.IO
-import io.socket.client.Socket
-import org.json.JSONObject
+import androidx.core.content.ContextCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var sensorManager: SensorManager
-    private var accelerometer: Sensor? = null
-    private lateinit var shakeDetector: ShakeDetector
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private var mSocket: Socket? = null
-
-    private lateinit var statusText: TextView
+    private lateinit var tvMainStatus: TextView
+    private lateinit var tvSubStatus: TextView
+    private lateinit var tvTerminal: TextView
+    private lateinit var scrollViewTerminal: ScrollView
+    private lateinit var switchBackground: Switch
+    private lateinit var btnManualTrigger: Button
 
     companion object {
-        private const val TAG = "ShakeAlert"
-        const val PERMISSION_REQUEST_LOCATION = 100
-        // Restored to direct local IP (VPN disconnected)
-        const val SOCKET_URL = "http://10.3.195.53:3000" 
+        const val PERMISSION_REQUEST_CODE = 200
+    }
+
+    private val logReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val msg = intent?.getStringExtra(ShakeAlertService.EXTRA_LOG_MSG) ?: return
+            appendLog(msg)
+        }
+    }
+
+    private val statusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val status = intent?.getStringExtra(ShakeAlertService.EXTRA_STATUS_MSG)
+            val subStatus = intent?.getStringExtra(ShakeAlertService.EXTRA_SUB_STATUS)
+            if (status != null) {
+                tvMainStatus.text = status
+                tvMainStatus.setTextColor(Color.parseColor("#34C759")) // Green success color
+            }
+            if (subStatus != null) tvSubStatus.text = subStatus
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        val scrollView = ScrollView(this)
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(40, 40, 40, 40)
-        }
+        setContentView(R.layout.activity_main)
 
-        statusText = TextView(this).apply {
-            text = "Initializing Shake Alert System...\n"
-            textSize = 18f
-        }
-        layout.addView(statusText)
+        tvMainStatus = findViewById(R.id.tvMainStatus)
+        tvSubStatus = findViewById(R.id.tvSubStatus)
+        tvTerminal = findViewById(R.id.tvTerminal)
+        scrollViewTerminal = findViewById(R.id.scrollViewTerminal)
+        switchBackground = findViewById(R.id.switchBackground)
+        btnManualTrigger = findViewById(R.id.btnManualTrigger)
 
-        val testButton = Button(this).apply {
-            text = "Trigger Manual Alert"
-            setOnClickListener {
-                statusText.append("\n[Manual Trigger] Detecting...")
-                sendAlertToServer("manual-test", 0.0f)
+        // Setup manual trigger
+        btnManualTrigger.setOnClickListener {
+            if (ShakeAlertService.isServiceRunning) {
+                appendLog("> Sending Manual Alert Override...")
+                val intent = Intent(this, ShakeAlertService::class.java).apply {
+                    action = "MANUAL_TRIGGER"
+                }
+                startService(intent)
+            } else {
+                appendLog("❌ Service is offline. Enable background monitoring first.")
             }
         }
-        layout.addView(testButton)
 
-        scrollView.addView(layout)
-        setContentView(scrollView)
+        // Setup switch listener
+        switchBackground.isChecked = ShakeAlertService.isServiceRunning
+        if (ShakeAlertService.isServiceRunning) {
+            tvMainStatus.text = "🟢 System Active"
+            tvMainStatus.setTextColor(Color.parseColor("#34C759"))
+            tvSubStatus.text = "Background monitoring enabled"
+        }
 
-        Log.i(TAG, "Activity Created.")
-        
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        
-        initSocket()
-        initSensors()
+        switchBackground.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                startShakeAppService()
+            } else {
+                stopShakeAppService()
+            }
+        }
+
         requestPermissions()
     }
 
-    private fun initSocket() {
-        try {
-            statusText.append("Connecting to: $SOCKET_URL\n")
-            
-            val opts = IO.Options()
-            opts.reconnection = true
-            opts.transports = arrayOf(io.socket.engineio.client.transports.WebSocket.NAME)
-            // Bypass localtunnel reminder page
-            opts.extraHeaders = mapOf("Bypass-Tunnel-Reminder" to listOf("true"))
-            
-            mSocket = IO.socket(SOCKET_URL, opts)
-            
-            mSocket?.on(Socket.EVENT_CONNECT) {
-                Log.i(TAG, "Socket Connected!")
-                runOnUiThread {
-                    statusText.append("✅ Connected to Server.\n")
-                }
-                mSocket?.emit("register", "victim")
-            }
-
-            mSocket?.on(Socket.EVENT_CONNECT_ERROR) { args ->
-                val err = if (args.isNotEmpty()) args[0].toString() else "Unknown Error"
-                Log.e(TAG, "Connection Error: $err")
-                runOnUiThread {
-                    statusText.append("❌ Connection Error: $err\n")
-                }
-            }
-
-            mSocket?.on(Socket.EVENT_DISCONNECT) {
-                runOnUiThread { statusText.append("⚠️ Disconnected from server.\n") }
-            }
-
-            mSocket?.connect()
-        } catch (e: Exception) {
-            Log.e(TAG, "Socket Error", e)
-            statusText.append("❌ Socket Setup Failed: ${e.message}\n")
-        }
-    }
-
-    private fun initSensors() {
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        
-        if (accelerometer == null) {
-            statusText.append("❌ No Accelerometer found!\n")
-            return
-        }
-
-        shakeDetector = ShakeDetector(object : ShakeDetector.OnShakeListener {
-            override fun onShake(severity: String, force: Float) {
-                runOnUiThread {
-                    statusText.append("🚨 SHAKE DETECTED! ($severity)\n")
-                }
-                sendAlertToServer(severity, force)
-            }
-        })
-        statusText.append("📡 Sensors active.\n")
-    }
-
     private fun requestPermissions() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            statusText.append("⌛ Requesting Location permissions...\n")
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), PERMISSION_REQUEST_LOCATION)
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        
+        val missingPermissions = permissions.filter { 
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED 
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), PERMISSION_REQUEST_CODE)
+            appendLog("> Requesting required permissions...")
         } else {
-            statusText.append("📍 Location permission granted.\n")
+            // Auto start if granted
+            if (!ShakeAlertService.isServiceRunning) {
+                switchBackground.isChecked = true // Triggers the listener to start it
+            }
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun sendAlertToServer(severity: String, force: Float) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                val lat = location?.latitude ?: 0.0
-                val lng = location?.longitude ?: 0.0
-                
-                runOnUiThread {
-                    statusText.append("📤 Sending Alert: $severity at [$lat, $lng]\n")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (!ShakeAlertService.isServiceRunning) {
+                    switchBackground.isChecked = true
                 }
-
-                val payload = JSONObject().apply {
-                    put("lat", lat)
-                    put("lng", lng)
-                    put("severity", severity)
-                    put("rawSensor", force.toDouble())
-                }
-
-                mSocket?.emit("shake_alert", payload)
+            } else {
+                appendLog("❌ Permissions denied. Cannot start background service.")
+                switchBackground.isChecked = false
             }
+        }
+    }
+
+    private fun startShakeAppService() {
+        appendLog("> Booting Background Process...")
+        val serviceIntent = Intent(this, ShakeAlertService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
         } else {
-            Toast.makeText(this, "Location permission required", Toast.LENGTH_SHORT).show()
+            startService(serviceIntent)
+        }
+    }
+
+    private fun stopShakeAppService() {
+        appendLog("> Shutting down Background Process...")
+        tvMainStatus.text = "System Offline"
+        tvMainStatus.setTextColor(Color.WHITE)
+        tvSubStatus.text = "Monitoring Disabled"
+        
+        val serviceIntent = Intent(this, ShakeAlertService::class.java).apply {
+            action = "STOP_SERVICE"
+        }
+        startService(serviceIntent)
+    }
+
+    private fun appendLog(msg: String) {
+        runOnUiThread {
+            tvTerminal.append("\n$msg")
+            scrollViewTerminal.post {
+                scrollViewTerminal.fullScroll(ScrollView.FOCUS_DOWN)
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        accelerometer?.also { accel ->
-            sensorManager.registerListener(shakeDetector, accel, SensorManager.SENSOR_DELAY_UI)
-        }
+        LocalBroadcastManager.getInstance(this).registerReceiver(logReceiver, IntentFilter(ShakeAlertService.ACTION_LOG))
+        LocalBroadcastManager.getInstance(this).registerReceiver(statusReceiver, IntentFilter(ShakeAlertService.ACTION_STATUS))
     }
 
     override fun onPause() {
         super.onPause()
-        sensorManager.unregisterListener(shakeDetector)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        mSocket?.disconnect()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(statusReceiver)
     }
 }
