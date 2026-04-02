@@ -166,12 +166,16 @@ class ShakeAlertService : Service() {
 
         shakeDetector = ShakeDetector(object : ShakeDetector.OnShakeListener {
             override fun onShake(severity: String, force: Float) {
-                broadcastLog("🚨 SHAKE DETECTED! ($severity)")
+                broadcastLog("🚨 EARTHQUAKE VERIFIED! ($severity)")
                 sendAlertToServer(severity, force)
                 if (severity == "severe" || severity == "manual-test") {
                     broadcastLog("🎙️ Activating emergency microphone...")
                     webRTCHandler?.startCall()
                 }
+            }
+            
+            override fun onFalseAlarmDropped() {
+                broadcastLog("⚠️ False Alarm Detected (Phone Drop). Ignoring.")
             }
         })
         
