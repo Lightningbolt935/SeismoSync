@@ -213,30 +213,49 @@ function App() {
 
   // Reusable component block for Call Action Buttons so we can put them in BOTH the sidebar and map pin.
   const renderCallControls = (alert) => {
+      const sosButtons = (
+        <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={() => socket.emit('signal', { to: alert.senderId, type: 'trigger_sos' })} style={{padding:'6px 12px', background:'#fbbf24', color:'#000', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 8px rgba(251, 191, 36, 0.4)'}}>
+            🔔 Sound SOS
+          </button>
+          <button onClick={() => socket.emit('signal', { to: alert.senderId, type: 'stop_sos' })} style={{padding:'6px 12px', background:'#475569', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold'}}>
+            🔕 Stop SOS
+          </button>
+        </div>
+      );
+
+      let audioControls = null;
       if (incomingOffers[alert.senderId]) {
          if (activeCalls[alert.senderId]) {
-            return (
+            audioControls = (
                <button onClick={() => disconnectAudio(alert.senderId)} style={{marginTop:'8px', padding:'6px 12px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)'}}>
                  🛑 Disconnect Call
                </button>
-            )
+            );
          } else {
-            return (
+            audioControls = (
                <button onClick={() => acceptAudio(alert.senderId)} style={{marginTop:'8px', padding:'6px 12px', background:'#3b82f6', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold', boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'}}>
                  📞 INCOMING FEED... ACCEPT
                </button>
-            )
+            );
          }
       } else {
-         return (
-            <div>
-               <button disabled style={{marginTop:'8px', padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
-               <button onClick={() => socket.emit('signal', { to: alert.senderId, type: 'poke_audio' })} style={{marginTop:'8px', marginLeft: '6px', padding:'6px 12px', background:'var(--accent-orange)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold'}}>
+         audioControls = (
+            <div style={{marginTop:'8px'}}>
+               <button disabled style={{padding:'6px 12px', background:'#1e293b', border:'1px solid #475569', color:'#94a3b8', borderRadius:'6px'}}>No Audio Data</button>
+               <button onClick={() => socket.emit('signal', { to: alert.senderId, type: 'poke_audio' })} style={{marginLeft: '6px', padding:'6px 12px', background:'var(--accent-orange)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: 'bold'}}>
                  Request Audio Test
                </button>
             </div>
-         )
+         );
       }
+
+      return (
+         <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '4px' }}>
+            {audioControls}
+            {sosButtons}
+         </div>
+      );
   };
 
   const mapCenter = [39.8283, -98.5795];

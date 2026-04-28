@@ -24,6 +24,10 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import io.socket.client.IO
 import io.socket.client.Socket
 import org.json.JSONObject
+import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
+import android.media.AudioAttributes
 
 class ShakeAlertService : Service() {
 
@@ -33,10 +37,11 @@ class ShakeAlertService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var mSocket: Socket? = null
     private var webRTCHandler: WebRTCHandler? = null
+    private var sosRingtone: Ringtone? = null
 
     companion object {
         private const val TAG = "ShakeAlertService"
-        const val SOCKET_URL = "http://10.3.195.53:3000"
+        const val SOCKET_URL = "http://10.9.32.45:3000"
         
         const val ACTION_LOG = "com.shakealert.LOG"
         const val ACTION_STATUS = "com.shakealert.STATUS"
@@ -141,6 +146,14 @@ class ShakeAlertService : Service() {
                                 broadcastLog("🛑 Dashboard disconnected call. Releasing microphone.")
                                 webRTCHandler?.stopCall()
                             }
+                            "trigger_sos" -> {
+                                broadcastLog("🔔 Dashboard triggered SOS ALARM!")
+                                playSosAlarm()
+                            }
+                            "stop_sos" -> {
+                                broadcastLog("🔕 Dashboard stopped SOS ALARM!")
+                                stopSosAlarm()
+                            }
                         }
                     }
                 }
@@ -232,6 +245,45 @@ class ShakeAlertService : Service() {
             ).apply { description = "Keeps the app listening for shakes in the background" }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun playSosAlarm() {
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVol, 0)
+            
+            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            if (sosRingtone == null) {
+                sosRingtone = RingtoneManager.getRingtone(applicationContext, alarmUri)
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                sosRingtone?.audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            } else {
+                @Suppress("DEPRECATION")
+                sosRingtone?.streamType = AudioManager.STREAM_ALARM
+            }
+            
+            if (sosRingtone?.isPlaying == false) {
+                sosRingtone?.play()
+            }
+        } catch (e: Exception) {
+            broadcastLog("❌ Failed to play SOS alarm: ${e.message}")
+        }
+    }
+
+    private fun stopSosAlarm() {
+        try {
+            if (sosRingtone?.isPlaying == true) {
+                sosRingtone?.stop()
+            }
+        } catch (e: Exception) {
+            broadcastLog("❌ Failed to stop SOS alarm: ${e.message}")
         }
     }
 
