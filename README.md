@@ -147,7 +147,7 @@ npx serve .
 
 ---
 
-## 🔮 How It Works
+##  How It Works
 
 1. **Detection** — Mobile app or ESP32 node continuously monitors sensor data for seismic patterns or manual SOS triggers
 2. **Transmission** — Alert is published to MQTT broker (simulating satellite relay for remote areas)
@@ -157,7 +157,7 @@ npx serve .
 
 ---
 
-## 👥 Team
+##  Team
 
 Built at **SRMIST Kattankulathur** for **Seismo Hack 1.0** (2025) — Disaster Management Hackathon
 
@@ -170,13 +170,13 @@ Built at **SRMIST Kattankulathur** for **Seismo Hack 1.0** (2025) — Disaster M
 
 ---
 
-## 🏆 Recognition
+##  Recognition
 
-- 🥈 **Seismo Hack 1.0 (2025)** — 14th position out of 300+ teams, National Level Disaster Management Hackathon
+-  **Seismo Hack 1.0 (2025)** — 14th position out of 300+ teams, National Level Disaster Management Hackathon
 
 ---
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
