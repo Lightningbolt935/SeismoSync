@@ -157,18 +157,6 @@ npx serve .
 
 ---
 
-##  Team
-
-Built at **SRMIST Kattankulathur** for **Seismo Hack 1.0** (2025) — Disaster Management Hackathon
-
-| Role | Contributor |
-|---|---|
-| iOS Development + Architecture | Snehil Sahay |
-| Android Development | Team |
-| Hardware (ESP32) | Team |
-| Backend + Dashboard | Team |
-
----
 
 ##  Recognition
 
