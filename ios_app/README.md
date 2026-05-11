@@ -19,7 +19,8 @@ You need to add the following dependencies to your project:
 1.  Create a new Xcode Project (App) named `ShakeAlert`.
 2.  Replace the generated files with the ones in this folder.
 3.  Add the dependencies using your preferred package manager.
-4.  Update the `SOCKET_URL` in `ShakeAlertManager.swift` to match your server's IP address.
+4.  (Improved) Configure the Socket server URL via `Info.plist` key `ShakeAlertSocketURL`.
+    If absent, the app falls back to the previous local dev URL used during development.
 5.  **Permissions**: Add the following keys to your `Info.plist`:
     *   `Privacy - Location Always and When In Use Usage Description`: "We need your location to send emergency alerts to rescuers."
     *   `Privacy - Location When In Use Usage Description`: "We need your location to send emergency alerts to rescuers."
@@ -29,6 +30,13 @@ You need to add the following dependencies to your project:
     *   Audio, AirPlay, and Picture in Picture
     *   Background fetch
     *   Remote notifications
+
+## Recent Polishes
+
+- Read `ShakeAlertSocketURL` from `Info.plist` (fallback to dev URL).
+- Timestamps added to runtime logs for easier debugging in `ContentView`.
+- `ContentView` UI: friendlier button text, prominent action button, styled log panel and app version shown in toolbar.
+- WebRTC candidate parsing hardened to avoid runtime crashes from malformed signaling payloads.
 
 ## Comparison with Android Version
 

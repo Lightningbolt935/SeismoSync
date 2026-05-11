@@ -68,11 +68,17 @@ class WebRTCHandler: NSObject {
     }
 
     func handleRemoteIceCandidate(json: [String: Any]) {
-        let candidate = RTCIceCandidate(
-            sdp: json["candidate"] as! String,
-            sdpMLineIndex: json["sdpMLineIndex"] as! Int32,
-            sdpMid: json["sdpMid"] as? String
-        )
+        guard let candidateStr = json["candidate"] as? String else { return }
+
+        var sdpIndex: Int32 = 0
+        if let idx = json["sdpMLineIndex"] as? Int32 {
+            sdpIndex = idx
+        } else if let idx = json["sdpMLineIndex"] as? Int {
+            sdpIndex = Int32(idx)
+        }
+
+        let sdpMid = json["sdpMid"] as? String
+        let candidate = RTCIceCandidate(sdp: candidateStr, sdpMLineIndex: sdpIndex, sdpMid: sdpMid)
         peerConnection?.add(candidate)
     }
 

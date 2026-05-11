@@ -18,7 +18,13 @@ class ShakeAlertManager: NSObject, ObservableObject {
     private var webRTCHandler = WebRTCHandler()
     private var audioPlayer: AVAudioPlayer?
 
-    let SOCKET_URL = "http://10.9.32.45:3000"
+    // Read socket URL from Info.plist when available; fall back to local dev server
+    let SOCKET_URL: String = {
+        if let url = Bundle.main.object(forInfoDictionaryKey: "ShakeAlertSocketURL") as? String {
+            return url
+        }
+        return "http://10.9.32.45:3000"
+    }()
 
     override init() {
         super.init()
@@ -151,10 +157,18 @@ class ShakeAlertManager: NSObject, ObservableObject {
         socket?.emit("shake_alert", payload)
     }
 
+    private func timestamp() -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "HH:mm:ss"
+        return fmt.string(from: Date())
+    }
+
     private func broadcastLog(_ msg: String) {
-        print(msg)
+        let entry = "[
+\(timestamp())] \(msg)"
+        print(entry)
         DispatchQueue.main.async {
-            self.logs.append(msg)
+            self.logs.append(entry)
         }
     }
 

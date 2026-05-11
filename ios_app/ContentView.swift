@@ -4,7 +4,7 @@ struct ContentView: View {
     @StateObject private var manager = ShakeAlertManager.shared
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(manager.mainStatus)
                     .font(.title)
@@ -37,20 +37,19 @@ struct ContentView: View {
             Button(action: {
                 manager.manualTrigger()
             }) {
-                Text("MANUAL TRIGGER")
-                    .fontWeight(.bold)
+                Text("Send Test Alert")
+                    .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.orange)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
             }
+            .buttonStyle(.borderedProminent)
+            .tint(Color.orange)
 
             VStack(alignment: .leading) {
-                Text("TERMINAL LOGS")
+                Text("Terminal Logs")
                     .font(.caption)
-                    .fontWeight(.bold)
-                    .padding(.bottom, 2)
+                    .fontWeight(.semibold)
+                    .padding(.bottom, 4)
 
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -67,14 +66,27 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding()
+                .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
-            .foregroundColor(.green)
+            .background(Color(.systemBackground))
             .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.separator), lineWidth: 1)
+            )
         }
         .padding()
         .navigationTitle("Shake Alert")
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                HStack {
+                    Spacer()
+                    Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
     }
 }
 
